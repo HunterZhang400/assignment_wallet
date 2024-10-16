@@ -41,3 +41,7 @@
  The most critical processes were located in wallet/service.go, which will be the primary focus area for reviewers.
 
 
+
+This is my another assignment of implement to count inline comments and block comments in projects [assignment](https://github.com/HunterZhang400/go-homework-count-code-comments) , FYI.
+
+
