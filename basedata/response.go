@@ -1,11 +1,13 @@
 package basedata
 
-const ServerUnavailable = "server unavailable"
-const NotLogIn = "You may not login"
-const InvalidAmount = "invalid amount money"
-const UserBusy = "your transaction is busy"
-const Success = "success"
-const Fail = "fail"
+const (
+	ServerUnavailable = "server unavailable"
+	NotLogIn          = "You may not login"
+	InvalidAmount     = "invalid amount money"
+	UserBusy          = "your transaction is busy"
+	Success           = "success"
+	Fail              = "fail"
+)
 
 func NewErrorResponse(msg string) Response {
 	return Response{Msg: msg}

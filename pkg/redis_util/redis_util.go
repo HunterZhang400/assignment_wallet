@@ -9,9 +9,13 @@ import (
 )
 
 var (
-	Client      *redis.Client
-	LockTimeout = errors.New("timeout when obtain lock")
+	Client           *redis.Client
+	ErrorLockTimeout = errors.New("timeout when obtain lock")
 )
+
+type RedisProxy interface {
+	Ping() (err error)
+}
 
 func InitRedis() error {
 	Client = redis.NewClient(&redis.Options{
@@ -34,14 +38,15 @@ func (l *RedisLock) UnLock() {
 }
 
 // GetLockWithTimeout get a distribute lock
-func GetLockWithTimeout(key string, lockerExpireTime time.Duration, maxWaitTime time.Duration) (lock *RedisLock, err error) {
+func GetLockWithTimeout(key string, lockerExpireTime time.Duration,
+	maxWaitTime time.Duration) (lock *RedisLock, err error) {
 	t := time.Now()
-	for time.Now().Sub(t) < maxWaitTime {
+	for time.Since(t) < maxWaitTime {
 		success, err := Client.SetNX(key, 1, lockerExpireTime).Result()
 		if err != nil {
 			return nil, err
 		}
-		//try again if fail
+		// try again if fail
 		if !success {
 			time.Sleep(time.Millisecond * 50)
 			continue
@@ -52,5 +57,5 @@ func GetLockWithTimeout(key string, lockerExpireTime time.Duration, maxWaitTime 
 			expireSecond: int64(lockerExpireTime.Seconds()),
 		}, err
 	}
-	return nil, LockTimeout
+	return nil, ErrorLockTimeout
 }

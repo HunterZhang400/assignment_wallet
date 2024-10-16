@@ -4,6 +4,14 @@
 
 # Install
 
+## 1. Go to the project root, and then execute "docker compose build", and then "docker compose up", the demo services will be running.
+
+## 2. Import ".postman_collection.json" to your postman, and you will see a collection name is "assignment_wallet".
+
+## 3. Try APIs functions and enjoy it.
+
+
+
 
 # Explains and Considerations
 
@@ -15,6 +23,11 @@
 
 ## 4. Other considerations: You may see secret configs in the etc/config.yaml, in real-world practice we should use complicate password and make it encrypted. The userID I suggest to used UUID string to make int unpredictable. Using bigint instead of money in postgresql due to its support not well. Added balance to response of deposit, withdraw and transfer business for better user experience, and clearly distinct the failure of deposit and query balance, avoiding make user confused to try again.
 
+## 5. I encountered the issue of how to  mock redis and mysql gracefully and effectively, so the coverage not match your requirements, but I tested the all APIs by postman.
+
+## 6. I use my free time to completing this assignment, about 4 hours design and conceived, 18 hours for coding, docker and gonglangci-lint etc.(PS, not the natural day hours, only working hours counted)
+
+
 
 # How to review
 
@@ -23,5 +36,8 @@
 - router/router.go
 - wallet/controller.go
 - wallet/service.go
-## 
+- pkg/db_util or pkg/redis_util
+- 
+ The most critical processes were located in wallet/service.go, which will be the primary focus area for reviewers.
+
 

@@ -2,53 +2,58 @@ package wallet
 
 import (
 	"assigement_wallet/basedata"
-	"assigement_wallet/pkg/db_util"
 	"assigement_wallet/pkg/redis_util"
 	"errors"
-	"fmt"
+	"github.com/jmoiron/sqlx"
 	"math"
 	"time"
 )
 
-const MoneyTypeOfDebit = 1
-const MoneyTypeOfCredit = 2
+const (
+	MoneyTypeOfDebit  = 1
+	MoneyTypeOfCredit = 2
+)
 
-var lockHoldMaxTime = time.Duration(30) * time.Second
-var maxWaitLockTime = time.Duration(5) * time.Second
+var (
+	ErrOfInvalidAmount       = errors.New(basedata.InvalidAmount)
+	ErrOfUserBusy            = errors.New(basedata.UserBusy)
+	ErrOfBalanceInsufficient = errors.New("your account balance insufficient")
+	ErrOfBalanceOverfill     = errors.New("your account overfill")
+	ErrOfInvalidQuerySize    = errors.New("invalid query size")
+	lockHoldMaxTime          = time.Duration(30) * time.Second //nolint:mnd
+	maxWaitLockTime          = time.Duration(5) * time.Second  //nolint:mnd
+)
 
-func QueryBalance(userID string) (int64, error) {
-	db := db_util.GetDB()
+func QueryBalance(db *sqlx.DB, userID string) (int64, error) {
 	balance := int64(0)
 	err := db.Get(&balance, "select balance from wallet_balance where user_id = $1", userID)
 	return balance, err
 }
 
-func CheckUserExist(userID string) (bool, error) {
-	db := db_util.GetDB()
+func CheckUserExist(db *sqlx.DB, userID string) (bool, error) {
 	count := int64(0)
 	err := db.Get(&count, "select count(1) from wallet_balance where user_id = $1", userID)
 	return count > 0, err
 }
 
-func Deposit(userID string, money int64) error {
+func Deposit(db *sqlx.DB, userID string, money int64) error {
 	if money <= 0 {
-		return errors.New(basedata.InvalidAmount)
+		return ErrOfInvalidAmount
 	}
 	locker, err := redis_util.GetLockWithTimeout(getUserLockKey(userID), lockHoldMaxTime, maxWaitLockTime)
 	if err != nil {
-		return errors.New(basedata.UserBusy)
+		return ErrOfUserBusy
 	}
 	defer locker.UnLock()
-	balance, err := QueryBalance(userID)
+	balance, err := QueryBalance(db, userID)
 	if err != nil {
 		return err
 	}
 	//prevent overfill
 	room := math.MaxInt64 - balance
 	if money > room {
-		return errors.New("your account overfill")
+		return ErrOfBalanceOverfill
 	}
-	db := db_util.GetDB()
 	tx := db.MustBegin()
 	_, err = tx.Exec("INSERT INTO wallet_detail (user_id, flow_type, amount, balance, occur_time, summary) values "+
 		"($1, $2, $3, $4, $5, $6)", userID, MoneyTypeOfDebit, money, balance+money, time.Now(), "deposit")
@@ -69,23 +74,22 @@ func Deposit(userID string, money int64) error {
 	return err
 }
 
-func Withdraw(userID string, money int64) error {
+func Withdraw(db *sqlx.DB, userID string, money int64) error {
 	if money <= 0 {
-		return errors.New(basedata.InvalidAmount)
+		return ErrOfInvalidAmount
 	}
 	locker, err := redis_util.GetLockWithTimeout(getUserLockKey(userID), lockHoldMaxTime, maxWaitLockTime)
 	if err != nil {
-		return errors.New(basedata.UserBusy)
+		return ErrOfUserBusy
 	}
 	defer locker.UnLock()
-	balance, err := QueryBalance(userID)
+	balance, err := QueryBalance(db, userID)
 	if err != nil {
 		return err
 	}
 	if money > balance {
-		return errors.New("your account balance insufficient")
+		return ErrOfBalanceInsufficient
 	}
-	db := db_util.GetDB()
 	tx := db.MustBegin()
 	_, err = tx.Exec("INSERT INTO wallet_detail (user_id, flow_type, amount,balance, occur_time, summary) values "+
 		"($1, $2, $3, $4, $5, $6)", userID, MoneyTypeOfCredit, money, balance-money, time.Now(), "withdraw")
@@ -116,11 +120,10 @@ type TransactionDetail struct {
 	Summary   string    `db:"summary" json:"summary"`
 }
 
-func QueryHistory(userID string, size int64) ([]TransactionDetail, error) {
+func QueryHistory(db *sqlx.DB, userID string, size int64) ([]TransactionDetail, error) {
 	if size <= 0 || size > 1000 {
-		return nil, errors.New("invalid query size")
+		return nil, ErrOfInvalidQuerySize
 	}
-	db := db_util.GetDB()
 	details := make([]TransactionDetail, 0)
 	err := db.Select(&details, "select id,user_id,flow_type,amount,balance,occur_time,summary from wallet_detail"+
 		" where user_id = $1 order by id limit $2", userID, size)
@@ -130,41 +133,41 @@ func QueryHistory(userID string, size int64) ([]TransactionDetail, error) {
 	return details, nil
 }
 
-func Transfer(fromUserID, toUserID string, amount int64) error {
+func Transfer(db *sqlx.DB, fromUserID, toUserID string, amount int64) error {
 	if amount <= 0 {
-		return errors.New("invalid amount")
+		return ErrOfInvalidAmount
 	}
 
 	fromLocker, err := redis_util.GetLockWithTimeout(getUserLockKey(fromUserID), lockHoldMaxTime, maxWaitLockTime)
 	if err != nil {
-		return errors.New(basedata.UserBusy)
+		return ErrOfUserBusy
 	}
 	defer fromLocker.UnLock()
 	toLocker, err := redis_util.GetLockWithTimeout(getUserLockKey(toUserID), lockHoldMaxTime, maxWaitLockTime)
 	if err != nil {
-		return errors.New(basedata.UserBusy)
+		return ErrOfUserBusy
 	}
 	defer toLocker.UnLock()
 
-	fromBalance, err := QueryBalance(fromUserID)
+	fromBalance, err := QueryBalance(db, fromUserID)
 	if err != nil {
 		return err
 	}
 	if amount > fromBalance {
-		return errors.New("your account is insufficient")
+		return ErrOfBalanceInsufficient
 	}
-	toBalance, err := QueryBalance(toUserID)
+	toBalance, err := QueryBalance(db, toUserID)
 	if err != nil {
 		return err
 	}
 	room := math.MaxInt64 - toBalance
 	if amount > room {
-		return errors.New("your account overfill")
+		return ErrOfBalanceOverfill
 	}
-	db := db_util.GetDB()
 	tx := db.MustBegin()
 	_, err = tx.Exec("INSERT INTO wallet_detail (user_id, flow_type, amount, balance, occur_time, summary) values "+
-		"($1, $2, $3, $4, $5, $6)", fromUserID, MoneyTypeOfCredit, amount, fromBalance-amount, time.Now(), fmt.Sprintf("transfer to %s", toUserID))
+		"($1, $2, $3, $4, $5, $6)", fromUserID, MoneyTypeOfCredit, amount, fromBalance-amount, time.Now(),
+		"transfer to "+toUserID)
 	if err != nil {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
 			return errors.Join(rollbackErr, err)
@@ -172,7 +175,8 @@ func Transfer(fromUserID, toUserID string, amount int64) error {
 		return err
 	}
 	_, err = tx.Exec("INSERT INTO wallet_detail (user_id, flow_type, amount, balance, occur_time, summary) values "+
-		"($1, $2, $3, $4, $5, $6)", toUserID, MoneyTypeOfDebit, amount, toBalance+amount, time.Now(), fmt.Sprintf("transfer from %s", fromUserID))
+		"($1, $2, $3, $4, $5, $6)", toUserID, MoneyTypeOfDebit, amount, toBalance+amount, time.Now(),
+		"transfer from "+fromUserID)
 	if err != nil {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil {
 			return errors.Join(rollbackErr, err)
@@ -194,7 +198,7 @@ func Transfer(fromUserID, toUserID string, amount int64) error {
 		return err
 	}
 	err = tx.Commit()
-	return nil
+	return err
 }
 
 func getUserLockKey(userID string) string {

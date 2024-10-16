@@ -4,11 +4,16 @@ import (
 	"assigement_wallet/basedata"
 	"assigement_wallet/config"
 	"assigement_wallet/http_core"
+	"assigement_wallet/pkg/db_util"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"log"
 	"net/http"
 	"strconv"
+)
+
+const (
+	DefaultSessionTimeoutSeconds = 3600
 )
 
 // LoginController to simplify demo, just simulate login by user id, without password check design
@@ -18,7 +23,7 @@ func LoginController(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, basedata.NewErrorResponse("user_id not allowed to be empty"))
 		return
 	}
-	userExist, err := CheckUserExist(userID)
+	userExist, err := CheckUserExist(db_util.GetDB(), userID)
 	if err != nil {
 		log.Println("LoginController:", err.Error())
 		ctx.JSON(http.StatusInternalServerError, basedata.NewErrorResponse(basedata.ServerUnavailable))
@@ -31,15 +36,15 @@ func LoginController(ctx *gin.Context) {
 			ctx.JSON(http.StatusInternalServerError, basedata.NewErrorResponse(basedata.ServerUnavailable))
 			return
 		}
-		ctx.SetCookie(http_core.SessionName, token, 3600, "/", "127.0.0.1", false, false)
+		ctx.SetCookie(http_core.SessionName, token, DefaultSessionTimeoutSeconds, "/", "127.0.0.1", false, false)
 		ctx.JSON(http.StatusOK, basedata.NewResponse(basedata.Success))
 	} else {
-		ctx.JSON(http.StatusBadRequest, basedata.NewErrorResponse(fmt.Sprintf("not found %s", userID)))
+		ctx.JSON(http.StatusBadRequest, basedata.NewErrorResponse("not found user_id:"+userID))
 	}
 }
 
 func LogoutController(ctx *gin.Context) {
-	ctx.SetCookie(http_core.SessionName, "", 3600, "/", "127.0.0.1", false, false)
+	ctx.SetCookie(http_core.SessionName, "", DefaultSessionTimeoutSeconds, "/", "127.0.0.1", false, false)
 	ctx.JSON(http.StatusOK, basedata.NewResponse(basedata.Success))
 }
 
@@ -49,7 +54,7 @@ func QueryBalanceController(ctx *gin.Context) {
 		ctx.JSON(http.StatusForbidden, basedata.NewErrorResponse(basedata.NotLogIn))
 		return
 	}
-	balance, err := QueryBalance(userID)
+	balance, err := QueryBalance(db_util.GetDB(), userID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, basedata.NewErrorResponse(basedata.ServerUnavailable))
 		return
@@ -58,9 +63,9 @@ func QueryBalanceController(ctx *gin.Context) {
 }
 
 type depositResponse struct {
-	//indicate deposit success or fail
+	// indicate deposit success or fail
 	DepositFlag string `json:"deposit_flag"`
-	//indicate query balance success or fail
+	// indicate query balance success or fail
 	QueryBalanceFlag string `json:"query_balance_flag"`
 	CurrentBalance   int64  `json:"current_balance"`
 }
@@ -78,7 +83,7 @@ func DepositController(ctx *gin.Context) {
 	}
 	amount, err := strconv.ParseInt(amountString, 10, 64)
 	if err != nil {
-		log.Println("DepositController:", fmt.Sprintf("wrong amount:%s", amountString))
+		log.Println("DepositController:", "wrong amount:"+amountString)
 		ctx.JSON(http.StatusBadRequest, basedata.NewErrorResponse("invalid amount"))
 		return
 	}
@@ -86,7 +91,7 @@ func DepositController(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, basedata.NewErrorResponse("invalid amount"))
 		return
 	}
-	err = Deposit(userID, amount)
+	err = Deposit(db_util.GetDB(), userID, amount)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, basedata.NewErrorResponse(basedata.ServerUnavailable))
 		return
@@ -96,9 +101,9 @@ func DepositController(ctx *gin.Context) {
 		QueryBalanceFlag: basedata.Success,
 		CurrentBalance:   0,
 	}
-	resp.CurrentBalance, err = QueryBalance(userID)
+	resp.CurrentBalance, err = QueryBalance(db_util.GetDB(), userID)
 	if err != nil {
-		//only query current balance fail, but the deposit succeeded, avoid make user confused
+		// only query current balance fail, but the deposit succeeded, avoid make user confused
 		resp.QueryBalanceFlag = basedata.Fail
 		ctx.JSON(http.StatusOK, basedata.NewResponse(resp))
 		return
@@ -107,9 +112,9 @@ func DepositController(ctx *gin.Context) {
 }
 
 type withdrawResponse struct {
-	//indicate withdraw success or fail
+	// indicate withdraw success or fail
 	WithdrawFlag string `json:"withdraw_flag"`
-	//indicate query balance success or fail
+	// indicate query balance success or fail
 	QueryBalanceFlag string `json:"query_balance_flag"`
 	CurrentBalance   int64  `json:"current_balance"`
 }
@@ -127,7 +132,7 @@ func WithdrawController(ctx *gin.Context) {
 	}
 	amount, err := strconv.ParseInt(amountString, 10, 64)
 	if err != nil {
-		log.Println("WithdrawController:", fmt.Sprintf("wrong amount:%s", amountString))
+		log.Println("WithdrawController:", "wrong amount:"+amountString)
 		ctx.JSON(http.StatusBadRequest, basedata.NewErrorResponse("invalid amount"))
 		return
 	}
@@ -135,7 +140,7 @@ func WithdrawController(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, basedata.NewErrorResponse("invalid amount"))
 		return
 	}
-	err = Withdraw(userID, amount)
+	err = Withdraw(db_util.GetDB(), userID, amount)
 	if err != nil {
 		log.Println("WithdrawController Withdraw:", err.Error())
 		ctx.JSON(http.StatusInternalServerError, basedata.NewErrorResponse(basedata.ServerUnavailable))
@@ -146,9 +151,9 @@ func WithdrawController(ctx *gin.Context) {
 		QueryBalanceFlag: basedata.Success,
 		CurrentBalance:   0,
 	}
-	resp.CurrentBalance, err = QueryBalance(userID)
+	resp.CurrentBalance, err = QueryBalance(db_util.GetDB(), userID)
 	if err != nil {
-		//only query current balance fail, but the withdrawal succeeded, avoid make user confused
+		// only query current balance fail, but the withdrawal succeeded, avoid make user confused
 		resp.QueryBalanceFlag = basedata.Fail
 		ctx.JSON(http.StatusOK, basedata.NewResponse(resp))
 		return
@@ -162,9 +167,9 @@ type transferParameter struct {
 }
 
 type transferResponse struct {
-	//indicate withdraw success or fail
+	// indicate withdraw success or fail
 	TransferFlag string `json:"transfer_flag"`
-	//indicate query balance success or fail
+	// indicate query balance success or fail
 	QueryBalanceFlag string `json:"query_balance_flag"`
 	CurrentBalance   int64  `json:"current_balance"`
 }
@@ -176,7 +181,11 @@ func TransferController(ctx *gin.Context) {
 		return
 	}
 	var param transferParameter
-	ctx.Bind(&param)
+	err := ctx.Bind(&param)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basedata.NewErrorResponse("parameter unrecognized"))
+		return
+	}
 	if param.ToUserID == "" {
 		ctx.JSON(http.StatusBadRequest, basedata.NewErrorResponse("to_user_id required"))
 		return
@@ -185,7 +194,7 @@ func TransferController(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, basedata.NewErrorResponse("invalid amount"))
 		return
 	}
-	err := Transfer(fromUserID, param.ToUserID, param.Amount)
+	err = Transfer(db_util.GetDB(), fromUserID, param.ToUserID, param.Amount)
 	if err != nil {
 		log.Println("TransferController Transfer:", err.Error())
 		ctx.JSON(http.StatusInternalServerError, basedata.NewErrorResponse(basedata.ServerUnavailable))
@@ -196,7 +205,7 @@ func TransferController(ctx *gin.Context) {
 		QueryBalanceFlag: basedata.Success,
 		CurrentBalance:   0,
 	}
-	resp.CurrentBalance, err = QueryBalance(fromUserID)
+	resp.CurrentBalance, err = QueryBalance(db_util.GetDB(), fromUserID)
 	if err != nil {
 		//only query current balance fail, but the transfer succeeded, avoid make user confused
 		resp.QueryBalanceFlag = basedata.Fail
@@ -214,16 +223,16 @@ func QueryHistoryController(ctx *gin.Context) {
 	}
 	sizeString := ctx.Query("size")
 	if sizeString == "" {
-		//use default size
+		// use default size
 		sizeString = "100"
 	}
 	size, err := strconv.ParseInt(sizeString, 10, 64)
 	if err != nil {
-		log.Println("WithdrawController:", fmt.Sprintf("wrong size:%s", sizeString))
+		log.Println("WithdrawController:", "wrong size:"+sizeString)
 		ctx.JSON(http.StatusBadRequest, basedata.NewErrorResponse("invalid size"))
 		return
 	}
-	details, err := QueryHistory(userID, size)
+	details, err := QueryHistory(db_util.GetDB(), userID, size)
 	if err != nil {
 		log.Println("QueryHistoryController QueryHistory:", err.Error())
 		ctx.JSON(http.StatusInternalServerError, basedata.NewErrorResponse(basedata.ServerUnavailable))
@@ -233,13 +242,13 @@ func QueryHistoryController(ctx *gin.Context) {
 }
 
 func getUserIDFromSession(ctx *gin.Context) string {
-	v, exist := ctx.Get(http_core.ContextUserKey)
-	if exist == false {
+	val, exist := ctx.Get(http_core.ContextUserKey)
+	if !exist {
 		return ""
 	}
-	userID, ok := v.(string)
+	userID, ok := val.(string)
 	if !ok {
-		log.Println("getUserIDFromSession:", fmt.Sprintf("invalid userID:%+v", v))
+		log.Println("getUserIDFromSession:", fmt.Sprintf("invalid userID:%+v", val))
 		return ""
 	}
 	return userID
