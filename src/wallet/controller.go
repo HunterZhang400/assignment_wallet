@@ -1,10 +1,10 @@
 package wallet
 
 import (
-	"assigement_wallet/basedata"
-	"assigement_wallet/config"
-	"assigement_wallet/http_core"
 	"assigement_wallet/pkg/db_util"
+	"assigement_wallet/src/basedata"
+	"assigement_wallet/src/config"
+	"assigement_wallet/src/http_core"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"log"

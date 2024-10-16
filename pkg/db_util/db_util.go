@@ -1,7 +1,7 @@
 package db_util
 
 import (
-	"assigement_wallet/config"
+	"assigement_wallet/src/config"
 	"fmt"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"

@@ -42,6 +42,6 @@
 
 
 
-This is my another assignment of implement to count inline comments and block comments in projects [assignment](https://github.com/HunterZhang400/go-homework-count-code-comments) , FYI.
+ By the way, this is my another assignment of implement to count inline comments and block comments in projects [assignment](https://github.com/HunterZhang400/go-homework-count-code-comments) , FYI.
 
 

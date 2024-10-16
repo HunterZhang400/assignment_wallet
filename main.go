@@ -1,11 +1,11 @@
 package main
 
 import (
-	"assigement_wallet/config"
-	"assigement_wallet/http_core"
 	"assigement_wallet/pkg/db_util"
 	"assigement_wallet/pkg/redis_util"
-	"assigement_wallet/router"
+	"assigement_wallet/src/config"
+	"assigement_wallet/src/http_core"
+	"assigement_wallet/src/router"
 	"fmt"
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"

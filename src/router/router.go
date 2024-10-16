@@ -1,7 +1,7 @@
 package router
 
 import (
-	"assigement_wallet/wallet"
+	"assigement_wallet/src/wallet"
 	"github.com/gin-gonic/gin"
 )
 

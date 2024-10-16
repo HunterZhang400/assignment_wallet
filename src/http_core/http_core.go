@@ -1,8 +1,8 @@
 package http_core
 
 import (
-	"assigement_wallet/basedata"
-	"assigement_wallet/config"
+	"assigement_wallet/src/basedata"
+	"assigement_wallet/src/config"
 	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"

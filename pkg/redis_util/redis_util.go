@@ -1,7 +1,7 @@
 package redis_util
 
 import (
-	"assigement_wallet/config"
+	"assigement_wallet/src/config"
 	"errors"
 	"fmt"
 	"github.com/go-redis/redis"

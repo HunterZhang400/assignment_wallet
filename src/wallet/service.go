@@ -1,8 +1,8 @@
 package wallet
 
 import (
-	"assigement_wallet/basedata"
 	"assigement_wallet/pkg/redis_util"
+	"assigement_wallet/src/basedata"
 	"errors"
 	"github.com/jmoiron/sqlx"
 	"math"
